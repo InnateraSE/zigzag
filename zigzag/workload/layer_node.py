@@ -111,6 +111,8 @@ class LayerNodeAttributes:
     dimension_relations: list[LayerDimRelation]
     padding: LayerPadding
     constant_operands: list[LayerOperand]
+    hidden_operand: LayerOperand | None
+    sequence_dim: LayerDim | None
     input_operand_source: InputOperandSource
     pr_layer_dim_sizes: LayerDimSizes | None
 
@@ -139,6 +141,8 @@ class LayerNode(LayerNodeABC):
     temporal_ordering: LayerTemporalOrdering
     padding: LayerPadding
     constant_operands: list[LayerOperand]
+    hidden_operand: LayerOperand | None
+    sequence_dim: LayerDim | None    
     input_operand_source: InputOperandSource
     layer_operands: list[LayerOperand]
     output_operand: LayerOperand
@@ -165,12 +169,15 @@ class LayerNode(LayerNodeABC):
         self.dimension_relations = node_attr.dimension_relations
         self.padding = node_attr.padding
         self.constant_operands = node_attr.constant_operands
+        self.hidden_operand = node_attr.hidden_operand
+        self.sequence_dim = node_attr.sequence_dim
         self.input_operand_source = node_attr.input_operand_source
         pr_layer_dim_sizes = node_attr.pr_layer_dim_sizes
 
         self.spatial_mapping = mapping_attr.spatial_mapping
         self.spatial_mapping_hint = mapping_attr.spatial_mapping_hint
         self.memory_operand_links = mapping_attr.memory_operand_links
+
         self.temporal_ordering = mapping_attr.temporal_ordering
 
         # Derived attributes
@@ -188,6 +195,22 @@ class LayerNode(LayerNodeABC):
         self.loop_relevancy_info = LoopRelevancyInfo.extract_relevancy_info(
             self.equation, self.layer_dim_sizes, self.pr_loop, pr_loop_list
         )
+        if self.hidden_operand is not None:
+            h_loop_relevancy_r = self.loop_relevancy_info.get_r_layer_dims(self.output_operand).copy()
+            h_loop_relevancy_r.remove(self.sequence_dim)
+            h_loop_relevancy_ir = [self.sequence_dim]
+            h_loop_relevancy_pr = {}
+            self.loop_relevancy_info.r_dims[self.hidden_operand] = h_loop_relevancy_r
+            self.loop_relevancy_info.ir_dims[self.hidden_operand] = h_loop_relevancy_ir
+            self.loop_relevancy_info.pr_dims[self.hidden_operand] = h_loop_relevancy_pr
+            self.layer_operands.append(self.hidden_operand)
+
+        for layer_op in self.memory_operand_links.layer_operands:
+            if layer_op not in self.layer_operands:
+                self.memory_operand_links.remove_layer_op(layer_op)
+        print(self.loop_relevancy_info.r_dims, self.loop_relevancy_info.ir_dims, self.loop_relevancy_info.pr_dims)
+        print(f"Memory operand links: {self.memory_operand_links}")
+        print(f"Layer operands: {self.layer_operands}")
         self.pr_decoupled_relevancy_info = self.loop_relevancy_info.create_pr_decoupled_relevancy_info()
 
         # To compute
