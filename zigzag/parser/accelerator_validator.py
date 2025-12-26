@@ -11,10 +11,10 @@ class AcceleratorValidator:
     """Validates a single Zigzag accelerator from a user-provided yaml file. Checks if the entries of the yaml file
     are valid and replace unspecified values with defaults."""
 
-    OPERAND_REGEX = r"^I[12]$|^O$"
+    OPERAND_REGEX = r"^I[12]$|^O$|^H$"
     DIMENSION_REGEX = r"^D\d$"
     PORT_REGEX = r"^[r]?[w]?_port_\d+$"
-    ALLOCATION_REGEX = r"^(I[12]|O), (fh|tl|fl|th)$"
+    ALLOCATION_REGEX = r"^(I[12]|O|H), (fh|tl|fl|th)$"
 
     SCHEMA = {
         "name": {"type": "string", "required": True},
