@@ -45,8 +45,9 @@ class MappingValidator:
                 "O": {"type": "string", "required": True},
                 "W": {"type": "string", "required": True},
                 "I": {"type": "string", "required": True},
+                "H": {"type": "string", "required": False},
             },
-            "default": {"O": "O", "I": "I1", "W": "I2"},
+            "default": {"O": "O", "I": "I1", "W": "I2", "H": "H"},
         },
         "spatial_mapping_hint": {
             "type": "dict",
