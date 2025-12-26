@@ -106,6 +106,13 @@ class LayerOperandPrecision(LayerAttribute):
             return self.data[Constants.FINAL_OUTPUT_LAYER_OP]
         return self.data[Constants.OUTPUT_LAYER_OP]
 
+    @property
+    def psum_state_precision(self) -> int:
+        """! Return the precision of either the final state or the psum state (if defined by user)"""
+        if Constants.PSUM_HIDDEN_LAYER_OP in self.data:
+            return self.data[Constants.PSUM_HIDDEN_LAYER_OP]
+        return self.data[Constants.HIDDEN_LAYER_OP]
+
 
 class MemoryOperandLinks(LayerAttribute):
     """! Links LayerOperand to MemoryOperand."""
@@ -136,6 +143,13 @@ class MemoryOperandLinks(LayerAttribute):
 
     def contains_mem_op(self, mem_op: MemoryOperand) -> bool:
         return mem_op in self.mem_operands
+
+    def remove_layer_op(self, layer_op: LayerOperand):
+        mem_op = self.data[layer_op]
+        del self.data[layer_op]
+        self.layer_operands.remove(layer_op)
+        self.mem_operands.remove(mem_op)
+        del self.__mem_to_layer_op_dict[mem_op]
 
     def copy(self):
         return MemoryOperandLinks(self.data.copy())
