@@ -50,6 +50,8 @@ class WorkloadValidator:
                 "W": {"type": "integer", "required": False},
                 "O": {"type": "integer", "required": True},
                 "O_final": {"type": "integer", "required": True},
+                "H": {"type": "integer", "required": False},
+                "H_psum": {"type": "integer", "required": False},
             },
         },
         "operand_source": {
@@ -59,6 +61,17 @@ class WorkloadValidator:
                 "W": {"type": "integer", "required": False},
                 "I": {"type": "integer", "required": False},
             },
+        },
+        "hidden_operand": {
+            "type": "string",
+            "required": False,
+            "nullable": True,
+            "default": None
+        },
+        "sequence_dim": {
+            "type": "string",
+            "required": False,
+            "default" : "T"
         },
         "pr_loop_dims": {
             "type": "list",
