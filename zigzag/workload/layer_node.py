@@ -195,22 +195,17 @@ class LayerNode(LayerNodeABC):
         self.loop_relevancy_info = LoopRelevancyInfo.extract_relevancy_info(
             self.equation, self.layer_dim_sizes, self.pr_loop, pr_loop_list
         )
-        if self.hidden_operand is not None:
+        if self.hidden_operand is not None and self.sequence_dim is not None:
             h_loop_relevancy_r = self.loop_relevancy_info.get_r_layer_dims(self.output_operand).copy()
             h_loop_relevancy_r.remove(self.sequence_dim)
-            h_loop_relevancy_ir = [self.sequence_dim]
-            h_loop_relevancy_pr = {}
             self.loop_relevancy_info.r_dims[self.hidden_operand] = h_loop_relevancy_r
-            self.loop_relevancy_info.ir_dims[self.hidden_operand] = h_loop_relevancy_ir
-            self.loop_relevancy_info.pr_dims[self.hidden_operand] = h_loop_relevancy_pr
+            self.loop_relevancy_info.ir_dims[self.hidden_operand] = [self.sequence_dim]
+            self.loop_relevancy_info.pr_dims[self.hidden_operand] = {}
             self.layer_operands.append(self.hidden_operand)
 
         for layer_op in self.memory_operand_links.layer_operands:
             if layer_op not in self.layer_operands:
                 self.memory_operand_links.remove_layer_op(layer_op)
-        print(self.loop_relevancy_info.r_dims, self.loop_relevancy_info.ir_dims, self.loop_relevancy_info.pr_dims)
-        print(f"Memory operand links: {self.memory_operand_links}")
-        print(f"Layer operands: {self.layer_operands}")
         self.pr_decoupled_relevancy_info = self.loop_relevancy_info.create_pr_decoupled_relevancy_info()
 
         # To compute
@@ -305,6 +300,7 @@ class LayerNode(LayerNodeABC):
             )
             # Clip this to the largest possible size for this partially relevant dimension (computed at initialization
             # based on padding)
+            assert self.pr_layer_dim_sizes is not None
             pr_dim_size = min(self.pr_layer_dim_sizes[dim], pr_dim_size)
             return pr_dim_size
         elif dim in self.layer_dim_sizes:
@@ -385,6 +381,8 @@ class LayerNode(LayerNodeABC):
             dimension_relations=self.dimension_relations,
             padding=self.padding,
             constant_operands=self.constant_operands,
+            hidden_operand=self.hidden_operand,
+            sequence_dim=self.sequence_dim,
             input_operand_source=self.input_operand_source,
             pr_layer_dim_sizes=self.pr_layer_dim_sizes,
         )
