@@ -11,7 +11,6 @@
     O: 16
     O_final: 8
     H: 8
-    H_psum: 0    
   operand_source:
     I: 0
     W: 0
