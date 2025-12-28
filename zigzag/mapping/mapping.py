@@ -141,7 +141,7 @@ class Mapping:
         # False means final output is present at current level
         psum_flag_h2l = [any(output_ir_flag[lv:output_arch_level]) for lv in reversed(range(output_arch_level))]
         psum_flag_l2h = list(reversed(psum_flag_h2l))
-        return psum_flag_l2h[1:] + [False]  # add an extra False on top for later indexing convenience
+        return psum_flag_l2h
 
     def gen_data_precision_dict(self):
         """! This function generates a dictionary that collect data precision for each operand at each arch level"""
@@ -160,127 +160,70 @@ class Mapping:
                 )
         self.data_precision_dict = data_precision_dict
 
+    def _generate_loop_size_per_level(self, mapping: SpatialMappingPerMemLvl,
+                                     dim_list: dict[LayerOperand, list[LayerDim]]) -> dict[LayerOperand, list[UnrollFactor]]:
+        """! Generate loop size per level for each operand based on the given mapping and dimension list"""
+        loop_size_per_level = {
+            op: [
+                math.prod(
+                    [
+                        lp_dim
+                        for lp_type, lp_dim in mapping[op][lv]
+                        if lp_type in dim_list[op]
+                    ]
+                )
+                for lv in range(self.spatial_mapping.arch_level[op])
+            ]
+            for op in self.operand_list
+        }
+        return loop_size_per_level
+
+    def _generate_loop_size_cabl(self, loop_size_per_level: dict[LayerOperand, list[UnrollFactor]]):
+
+        """! Generate current and above levels (caal) loop size list for each operand"""
+        loop_size_cabl = {
+            op: [
+                math.prod(loop_size_per_level[op][0 : lv + 1])
+                for lv in range(self.spatial_mapping.arch_level[op])
+            ]
+            for op in self.operand_list
+        }
+        return loop_size_cabl
+    
+    def _generate_loop_size_caal(self, loop_size_per_level: dict[LayerOperand, list[UnrollFactor]], operand: LayerOperand):
+
+        """! Generate current and above levels (caal) loop size list for each operand"""
+        loop_size_caal = [
+            math.prod(loop_size_per_level[operand][lv : self.spatial_mapping.arch_level[operand]])
+            for lv in range(self.spatial_mapping.arch_level[operand])
+        ]
+        loop_size_caal.extend([1, 1])
+        return loop_size_caal
+
     def gen_r_ir_loop_list(self):
         """! Given the combined mapping, generate r/ir loop size list at each level for each operand
         # TODO cleanup
         """
+        relevancy_table = self.layer_node.pr_decoupled_relevancy_info      
         combined_mapping = self.combined_mapping_dict_1s1t_reform
         combined_mapping2 = self.combined_mapping_dict_1s2t_reform
-        relevancy_table = self.layer_node.pr_decoupled_relevancy_info
-        r_loop_size_per_level = {
-            op: [
-                math.prod(
-                    [
-                        lp_dim
-                        for lp_type, lp_dim in combined_mapping[op][lv]
-                        if lp_type in relevancy_table.get_r_layer_dims(op)
-                    ]
-                )
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        r_loop_size_per_level2 = {
-            op: [
-                math.prod(
-                    [
-                        lp_dim
-                        for lp_type, lp_dim in combined_mapping2[op][lv]
-                        if lp_type in relevancy_table.get_r_layer_dims(op)
-                    ]
-                )
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        ir_loop_size_per_level = {
-            op: [
-                math.prod(
-                    [
-                        lp_dim
-                        for lp_type, lp_dim in combined_mapping[op][lv]
-                        if lp_type in relevancy_table.get_ir_layer_dims(op)
-                    ]
-                )
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        ir_loop_size_per_level2 = {
-            op: [
-                math.prod(
-                    [
-                        lp_dim
-                        for lp_type, lp_dim in combined_mapping2[op][lv]
-                        if lp_type in relevancy_table.get_ir_layer_dims(op)
-                    ]
-                )
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
+        
+        self.r_loop_size_per_level = self._generate_loop_size_per_level(combined_mapping, relevancy_table.get_r_layer_dims_dict())
+        self.r_loop_size_per_level2 = self._generate_loop_size_per_level(combined_mapping2, relevancy_table.get_r_layer_dims_dict())
+        self.ir_loop_size_per_level = self._generate_loop_size_per_level(combined_mapping, relevancy_table.get_ir_layer_dims_dict())
+        self.ir_loop_size_per_level2 = self._generate_loop_size_per_level(combined_mapping2, relevancy_table.get_ir_layer_dims_dict())
+        
+        self.r_loop_size_cabl = self._generate_loop_size_cabl(self.r_loop_size_per_level)
+        self.r_loop_size_cabl2 = self._generate_loop_size_cabl(self.r_loop_size_per_level2)
+        self.ir_loop_size_cabl = self._generate_loop_size_cabl(self.ir_loop_size_per_level)
+        self.ir_loop_size_cabl2 = self._generate_loop_size_cabl(self.ir_loop_size_per_level2)
 
-        # current and below levels (cabl) r loop size
-        r_loop_size_cabl = {
-            op: [
-                round(math.prod(r_loop_size_per_level[op][0 : lv + 1]))
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        r_loop_size_cabl2 = {
-            op: [
-                round(math.prod(r_loop_size_per_level2[op][0 : lv + 1]))
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        # current and below levels (cabl) ir loop size
-        ir_loop_size_cabl = {
-            op: [math.prod(ir_loop_size_per_level[op][0 : lv + 1]) for lv in range(self.spatial_mapping.arch_level[op])]
-            for op in self.operand_list
-        }
-        # current and below levels (cabl) ir loop size
-        ir_loop_size_cabl2 = {
-            op: [
-                math.prod(ir_loop_size_per_level2[op][0 : lv + 1]) for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            for op in self.operand_list
-        }
-        # current and above levels (caal) ir loop size, only for output operand for calculating psum backflow access
-        # count
         output_operand = self.layer_node.output_operand
-        output_ir_loop_size_caal = [
-            math.prod(ir_loop_size_per_level[output_operand][lv : self.spatial_mapping.arch_level[output_operand]])
-            for lv in range(self.spatial_mapping.arch_level[output_operand])
-        ]
-        # append two extra 1 to the list to facilitate the psum backflow access calculation later
-        # We can see it as adding two output memory levels on top with no data reuse.
-        output_ir_loop_size_caal.extend([1, 1])
-
-        self.r_loop_size_per_level = r_loop_size_per_level
-        self.r_loop_size_per_level2 = r_loop_size_per_level2
-        self.ir_loop_size_per_level = ir_loop_size_per_level
-        self.r_loop_size_cabl = r_loop_size_cabl
-        self.r_loop_size_cabl2 = r_loop_size_cabl2
-        self.ir_loop_size_cabl = ir_loop_size_cabl
-        self.ir_loop_size_cabl2 = ir_loop_size_cabl2
-        self.output_ir_loop_size_caal = output_ir_loop_size_caal
-
-        if self.layer_node.hidden_operand is not None:
-            op = self.layer_node.hidden_operand
-            hidden_ir_loop_size_caal = [
-                math.prod(ir_loop_size_per_level[op][lv : self.spatial_mapping.arch_level[op]])
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            hidden_r_loop_size_caal = [
-                math.prod(r_loop_size_per_level[op][lv : self.spatial_mapping.arch_level[op]])
-                for lv in range(self.spatial_mapping.arch_level[op])
-            ]
-            hidden_ir_loop_size_caal.extend([1, 1])
-            self.hidden_ir_loop_size_caal = hidden_ir_loop_size_caal
-            hidden_r_loop_size_caal.extend([1, 1])
-            self.hidden_r_loop_size_caal = hidden_r_loop_size_caal
+        hidden_operand = Constants.HIDDEN_LAYER_OP
+        self.output_ir_loop_size_caal = self._generate_loop_size_caal(self.ir_loop_size_per_level, output_operand)
+        if self.layer_node.is_hidden:
+            self.hidden_ir_loop_size_caal = self._generate_loop_size_caal(self.ir_loop_size_per_level, hidden_operand)
+            self.hidden_r_loop_size_caal = self._generate_loop_size_caal(self.r_loop_size_per_level, hidden_operand)           
 
     def calc_data_size(self):
         """! Based on the r loop size list, calculate the data size held by each architectural level."""
@@ -291,10 +234,15 @@ class Mapping:
             op: [round(self.r_loop_size_cabl2[op][lv]) for lv in range(self.spatial_mapping.arch_level[op])]
             for op in self.operand_list
         }
+        if self.layer_node.is_hidden and not self.layer_node.store_top:
+            op = Constants.HIDDEN_LAYER_OP
+            for lv in range(self.spatial_mapping.arch_level[op]):
+                if (self.hidden_ir_loop_size_caal[lv] == 1):
+                    data_elem_per_level_unrolled[op][lv] = 0
 
         data_bit_per_level_unrolled = {
             op: [
-                round(self.r_loop_size_cabl2[op][lv]) * self.data_precision_dict[op][lv]
+                round(data_elem_per_level_unrolled[op][lv]) * self.data_precision_dict[op][lv]
                 for lv in range(self.spatial_mapping.arch_level[op])
             ]
             for op in self.operand_list
@@ -310,8 +258,8 @@ class Mapping:
 
         data_bit_per_level = {
             op: [
-                round(data_elem_unrolled * self.spatial_mapping.unit_unique[op][lv]) * self.data_precision_dict[op][lv]
-                for lv, data_elem_unrolled in enumerate(data_elem_per_level_unrolled[op])
+                round(data_elem_per_level[op][lv]) * self.data_precision_dict[op][lv]
+                for lv in range(self.spatial_mapping.arch_level[op])
             ]
             for op in self.operand_list
         }
@@ -469,43 +417,57 @@ class Mapping:
             self.unit_mem_data_movement[output_operand][mem_level_id] = unit_mem_data_movement
 
         # For hidden operand
-        hidden_operand = self.layer_node.hidden_operand
-        if hidden_operand is None:
-            return
-        for mem_level_id in range(self.mem_level[hidden_operand]):
-            unit_mem_data_movement = DataMovePattern(hidden_operand, mem_level_id)
+        if self.layer_node.is_hidden:
+            operand = Constants.HIDDEN_LAYER_OP
+            for mem_level_id in range(self.mem_level[operand]):
+                unit_mem_data_movement = DataMovePattern(operand, mem_level_id)
 
-            # data access count = size * sequence steps 
-            low = (
-                self.layer_node.operand_size_elem[hidden_operand]
-                * (self.hidden_ir_loop_size_caal[mem_level_id + 1])
-            )
-            high = (
-                self.layer_node.operand_size_elem[hidden_operand]
-                * (self.hidden_ir_loop_size_caal[mem_level_id + 2])
-            )
-            data_access_counts = {
-                DataDirection.RD_OUT_TO_LOW: low,
-                DataDirection.WR_IN_BY_LOW: low,
-                DataDirection.RD_OUT_TO_HIGH: high,
-                DataDirection.WR_IN_BY_HIGH: high,
-            }
-            unit_mem_data_movement.set_attribute(DataMoveAttr.DATA_ELEM_MOVE_COUNT, data_access_counts)
-            # data precision
-            pre = float(self.layer_node.operand_precision[hidden_operand])
-            data_precisions = {
-                DataDirection.RD_OUT_TO_LOW: pre,
-                DataDirection.WR_IN_BY_LOW: pre,
-                DataDirection.RD_OUT_TO_HIGH: pre,
-                DataDirection.WR_IN_BY_HIGH: pre,
-            }
-            unit_mem_data_movement.set_attribute(DataMoveAttr.DATA_PRECISION, data_precisions)
-            self.unit_mem_data_movement[hidden_operand][mem_level_id] = unit_mem_data_movement
+                # data access count = size * sequence steps 
+                skip_ld = self.layer_node.skip_load
+                skip_st = self.layer_node.skip_store               
+                rd_out_to_low_count = (
+                    self.layer_node.operand_size_elem[operand]
+                    * (self.hidden_ir_loop_size_caal[mem_level_id + 1] - skip_ld)
+                )
+                wr_in_by_low_count = (
+                    self.layer_node.operand_size_elem[operand]
+                    * (self.hidden_ir_loop_size_caal[mem_level_id + 1] - skip_st)
+                )
+                rd_out_to_high_count = (
+                    self.layer_node.operand_size_elem[operand]
+                    * (self.hidden_ir_loop_size_caal[mem_level_id + 2] - skip_st)
+                )
+                wr_in_by_high_count = (
+                    self.layer_node.operand_size_elem[operand]
+                    * (self.hidden_ir_loop_size_caal[mem_level_id + 2] - skip_ld)
+                )
+                data_access_counts = {
+                    DataDirection.RD_OUT_TO_LOW: rd_out_to_low_count,
+                    DataDirection.WR_IN_BY_LOW: wr_in_by_low_count,
+                    DataDirection.RD_OUT_TO_HIGH: rd_out_to_high_count,
+                    DataDirection.WR_IN_BY_HIGH: wr_in_by_high_count,
+                }
+                unit_mem_data_movement.set_attribute(DataMoveAttr.DATA_ELEM_MOVE_COUNT, data_access_counts)
+                # data precision
+                pre = float(self.layer_node.operand_precision[operand])
+                data_precisions = {
+                    DataDirection.RD_OUT_TO_LOW: pre,
+                    DataDirection.WR_IN_BY_LOW: pre,
+                    DataDirection.RD_OUT_TO_HIGH: pre,
+                    DataDirection.WR_IN_BY_HIGH: pre,
+                }
+                unit_mem_data_movement.set_attribute(DataMoveAttr.DATA_PRECISION, data_precisions)
+                self.unit_mem_data_movement[operand][mem_level_id] = unit_mem_data_movement
 
     def calc_req_mem_bw_and_data_transfer_rate(self):
         """! This function calculates the average & instant required memory bw and the periodic data transfer
         pattern."""
-
+        def _get_pd_from_pc(pc: float, total_cycle: UnrollFactor) -> float:
+            """! Get data transfer period from data transfer period count"""
+            if pc == 0:
+                return 0
+            else:
+                return total_cycle // pc
         if self.access_same_data_considered_as_no_access:
             # For input and hidden operands, add operational array level's 'mac_level_data_stationary_cycle' cycle in the below to
             # align with the list length of data_each_level
@@ -685,47 +647,58 @@ class Mapping:
                 DataMoveAttr.DATA_TRANS_AMOUNT_PER_PERIOD, data_transfer_per_period_amounts
             )
         # For hidden operands
-        if self.layer_node.hidden_operand is not None:
-            operand = self.layer_node.hidden_operand
+        if self.layer_node.is_hidden:
+            operand = Constants.HIDDEN_LAYER_OP
             for mem_level in range(self.mem_level[operand]):
                 # average required memory BW
-                low_count = (
-                    self.layer_node.operand_size_elem[operand]
-                    * (self.hidden_ir_loop_size_caal[mem_level + 1])
-                )
-                high_count = (
-                    low_count * mem_bw_boost_factor[operand][mem_level]
-                )
+                skip_ld = self.layer_node.skip_load
+                skip_st = self.layer_node.skip_store
+                rd_out_to_low_ir = self.hidden_ir_loop_size_caal[mem_level + 1] - skip_ld
+                wr_in_by_low_ir = self.hidden_ir_loop_size_caal[mem_level + 1] - skip_st
+                rd_out_to_high_ir = self.hidden_ir_loop_size_caal[mem_level + 2] - skip_st
+                wr_in_by_high_ir = self.hidden_ir_loop_size_caal[mem_level + 2] - skip_ld
+
+                rd_out_to_low_count = self.layer_node.operand_size_elem[operand] * rd_out_to_low_ir
+                wr_in_by_low_count = self.layer_node.operand_size_elem[operand] * wr_in_by_low_ir             
+                rd_out_to_high_count = wr_in_by_low_count * mem_bw_boost_factor[operand][mem_level]
+                wr_in_by_high_count = rd_out_to_low_count * mem_bw_boost_factor[operand][mem_level]
+
                 pre = self.layer_node.operand_precision[operand]        
-                low_bw = pre * low_count / self.temporal_mapping.total_cycle
-                high_bw = pre * high_count / self.temporal_mapping.total_cycle
+                rd_out_to_low_bw = pre * rd_out_to_low_count / self.temporal_mapping.total_cycle
+                wr_in_by_low_bw = pre * wr_in_by_low_count / self.temporal_mapping.total_cycle
+                rd_out_to_high_bw = pre * rd_out_to_high_count / self.temporal_mapping.total_cycle
+                wr_in_by_high_bw = pre * wr_in_by_high_count / self.temporal_mapping.total_cycle
                 avg_rq_bws = {
-                    DataDirection.RD_OUT_TO_LOW: low_bw,
-                    DataDirection.WR_IN_BY_LOW: low_bw,
-                    DataDirection.RD_OUT_TO_HIGH: high_bw,
-                    DataDirection.WR_IN_BY_HIGH: high_bw,
+                    DataDirection.RD_OUT_TO_LOW: rd_out_to_low_bw,
+                    DataDirection.WR_IN_BY_LOW: wr_in_by_low_bw,
+                    DataDirection.RD_OUT_TO_HIGH: rd_out_to_high_bw,
+                    DataDirection.WR_IN_BY_HIGH: wr_in_by_high_bw,
                 }
                 self.unit_mem_data_movement[operand][mem_level].set_attribute(DataMoveAttr.REQ_MEM_BW_AVER, avg_rq_bws)
                 # data transfer period count
-                low_pc = (self.hidden_ir_loop_size_caal[mem_level + 1] * self.hidden_r_loop_size_caal[mem_level + 1])
-                high_pc = (self.hidden_ir_loop_size_caal[mem_level + 2] * self.hidden_r_loop_size_caal[mem_level + 2])
+                rd_out_to_low_pc = rd_out_to_low_ir * self.hidden_r_loop_size_caal[mem_level + 1]
+                wr_in_by_low_pc = wr_in_by_low_ir * self.hidden_r_loop_size_caal[mem_level + 1]
+                rd_out_to_high_pc = rd_out_to_high_ir * self.hidden_r_loop_size_caal[mem_level + 2]
+                wr_in_by_high_pc = wr_in_by_high_ir * self.hidden_r_loop_size_caal[mem_level + 2]
                 data_transfer_period_counts = {
-                    DataDirection.RD_OUT_TO_LOW: low_pc,
-                    DataDirection.WR_IN_BY_LOW: low_pc,
-                    DataDirection.RD_OUT_TO_HIGH: high_pc,
-                    DataDirection.WR_IN_BY_HIGH: high_pc,
+                    DataDirection.RD_OUT_TO_LOW: rd_out_to_low_pc,
+                    DataDirection.WR_IN_BY_LOW: wr_in_by_low_pc,
+                    DataDirection.RD_OUT_TO_HIGH: rd_out_to_high_pc,
+                    DataDirection.WR_IN_BY_HIGH: wr_in_by_high_pc,
                 }
                 self.unit_mem_data_movement[operand][mem_level].set_attribute(
                     DataMoveAttr.DATA_TRANS_PERIOD_COUNT, data_transfer_period_counts
                 )
                 # data transfer period
-                low_pd = (self.temporal_mapping.total_cycle // low_pc)
-                high_pd = (self.temporal_mapping.total_cycle // high_pc)
+                rd_out_to_low_pd = _get_pd_from_pc(rd_out_to_low_pc, self.temporal_mapping.total_cycle)
+                wr_in_by_low_pd = _get_pd_from_pc(wr_in_by_low_pc, self.temporal_mapping.total_cycle)
+                rd_out_to_high_pd = _get_pd_from_pc(rd_out_to_high_pc, self.temporal_mapping.total_cycle)
+                wr_in_by_high_pd = _get_pd_from_pc(wr_in_by_high_pc, self.temporal_mapping.total_cycle)
                 data_transfer_periods = {
-                    DataDirection.RD_OUT_TO_LOW: low_pd,
-                    DataDirection.WR_IN_BY_LOW: low_pd,
-                    DataDirection.RD_OUT_TO_HIGH: high_pd,
-                    DataDirection.WR_IN_BY_HIGH: high_pd,
+                    DataDirection.RD_OUT_TO_LOW: rd_out_to_low_pd,
+                    DataDirection.WR_IN_BY_LOW: wr_in_by_low_pd,
+                    DataDirection.RD_OUT_TO_HIGH: rd_out_to_high_pd,
+                    DataDirection.WR_IN_BY_HIGH: wr_in_by_high_pd,
                 }
                 self.unit_mem_data_movement[operand][mem_level].set_attribute(
                     DataMoveAttr.DATA_TRANS_PERIOD, data_transfer_periods

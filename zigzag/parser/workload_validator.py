@@ -62,16 +62,20 @@ class WorkloadValidator:
                 "I": {"type": "integer", "required": False},
             },
         },
-        "hidden_operand": {
-            "type": "string",
+        "is_hidden": {
+            "type": "boolean",
             "required": False,
-            "nullable": True,
-            "default": None
+            "default": False
         },
         "sequence_dim": {
             "type": "string",
             "required": False,
-            "default" : "T"
+            "default": "T"
+        },
+        "hidden_mode": {
+            "type": "integer",
+            "required": False,
+            "default": 0
         },
         "pr_loop_dims": {
             "type": "list",

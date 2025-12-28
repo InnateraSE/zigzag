@@ -6,6 +6,7 @@ from zigzag.datatypes import (
     LayerDim,
     LayerOperand,
     UnrollFactor,
+    Constants
 )
 from zigzag.parser.mapping_factory import MappingFactory
 from zigzag.parser.workload_validator import WorkloadValidator
@@ -75,8 +76,10 @@ class LayerNodeFactory:
         operand_precision = self.create_operand_precision()
         dimension_relations = self.create_layer_dim_relations()
         constant_operands = self.create_constant_operands()
-        hidden_operand = self.create_hidden_operand()
-        sequence_dim = self.create_sequence_dim(layer_dim_sizes.layer_dims)
+        is_hidden = self.node_data.get("is_hidden", False)
+        sequence_dim_str = self.node_data.get("sequence_dim", Constants.SEQUENCE_DIM)
+        sequence_dim = LayerDim(sequence_dim_str)
+        hidden_mode = self.node_data.get("hidden_mode", 0)
         input_operand_source = self.create_operand_source()
         padding = self.create_padding()
         pr_layer_dim_sizes = self.create_pr_layer_dim_sizes()
@@ -88,7 +91,8 @@ class LayerNodeFactory:
             operand_precision=operand_precision,
             dimension_relations=dimension_relations,
             constant_operands=constant_operands,
-            hidden_operand=hidden_operand,
+            is_hidden=is_hidden,
+            hidden_mode=hidden_mode,
             sequence_dim=sequence_dim,
             input_operand_source=input_operand_source,
             padding=padding,
@@ -156,18 +160,6 @@ class LayerNodeFactory:
         operand_sources: dict[str, int] = self.node_data["operand_source"]
         constant_operands: list[str] = [op for op, source in operand_sources.items() if source == self.node_data["id"]]
         return [LayerOperand(layer_op_str) for layer_op_str in constant_operands]
-
-    def create_hidden_operand(self) -> LayerOperand | None:
-        if self.node_data.get("hidden_operand") is None:
-            return None
-        return LayerOperand(self.node_data["hidden_operand"])
-
-    def create_sequence_dim(self, layer_dims: list[LayerDim]) -> LayerDim | None:
-        sequence_dim = LayerDim(self.node_data['sequence_dim'])
-        if sequence_dim in layer_dims:
-            return sequence_dim
-        else:
-            return None
 
     def create_operand_source(self) -> InputOperandSource:
         operand_sources: dict[str, int] = self.node_data["operand_source"]

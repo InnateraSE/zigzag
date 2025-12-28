@@ -99,6 +99,12 @@ class Constants:
     OUTPUT_LAYER_OP = LayerOperand("O")
     FINAL_OUTPUT_LAYER_OP = LayerOperand("O_final")
     HIDDEN_LAYER_OP = LayerOperand("H")
+    
+    SEQUENCE_DIM = "T"
+    HIDDEN_LOAD_STORE_MODE = 0
+    HIDDEN_LOAD_ONLY_MODE = 1
+    HIDDEN_STORE_ONLY_MODE = 2
+    HIDDEN_VOLATILE_MODE = 3
 
     MEM_OP_1 = MemoryOperand("I1")
     MEM_OP_2 = MemoryOperand("I2")

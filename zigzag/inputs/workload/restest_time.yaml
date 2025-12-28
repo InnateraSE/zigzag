@@ -14,5 +14,6 @@
   operand_source:
     I: 0
     W: 0
-  hidden_operand: H
+  is_hidden: true
+  hidden_mode: 0
 
