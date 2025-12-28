@@ -5,7 +5,8 @@ from zigzag import api
 from zigzag.cost_model.cost_model import CostModelEvaluation
 from zigzag.visualization import bar_plot_cost_model_evaluations_breakdown, print_mapping
 
-workload_path = "zigzag/inputs/workload/resnet18.onnx"  # or "zigzag/inputs/workload/resnet18.yaml"
+workload_path = "zigzag/inputs/workload/restest_time.yaml"
+# workload_path = "zigzag/inputs/workload/alexnet.onnx"
 accelerator_path = "zigzag/inputs/hardware/tpu_like.yaml"
 mapping_path = "zigzag/inputs/mapping/tpu_like.yaml"
 experiment_id = datetime.now()
