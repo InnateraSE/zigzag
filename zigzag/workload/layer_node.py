@@ -217,7 +217,8 @@ class LayerNode(LayerNodeABC):
         if self.is_hidden:
             operand = Constants.HIDDEN_LAYER_OP
             h_loop_relevancy_r = self.loop_relevancy_info.get_r_layer_dims(self.output_operand).copy()
-            h_loop_relevancy_r.remove(self.sequence_dim)
+            if self.sequence_dim in h_loop_relevancy_r:
+                h_loop_relevancy_r.remove(self.sequence_dim)
             self.loop_relevancy_info.r_dims[operand] = h_loop_relevancy_r
             self.loop_relevancy_info.ir_dims[operand] = [self.sequence_dim]
             self.loop_relevancy_info.pr_dims[operand] = {}
