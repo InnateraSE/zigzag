@@ -229,6 +229,9 @@ class LayerNode(LayerNodeABC):
             self.loop_relevancy_info.r_dims[operand] = h_loop_relevancy_r
             self.loop_relevancy_info.pr_dims[operand] = {}
             self.layer_operands.append(operand)
+            self.hidden_operands = [operand]
+        else:
+            self.hidden_operands = []
 
         for layer_op in self.memory_operand_links.layer_operands:
             if layer_op not in self.layer_operands:
