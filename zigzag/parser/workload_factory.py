@@ -79,7 +79,7 @@ class LayerNodeFactory:
         is_hidden = self.node_data.get("is_hidden", False)
         sequence_dim_str = self.node_data.get("sequence_dim", Constants.SEQUENCE_DIM)
         sequence_dim = LayerDim(sequence_dim_str)
-        hidden_mode = self.node_data.get("hidden_mode", 0)
+        hidden_mode = self.node_data.get("hidden_mode", Constants.HIDDEN_VOLATILE_MODE)
         input_operand_source = self.create_operand_source()
         padding = self.create_padding()
         pr_layer_dim_sizes = self.create_pr_layer_dim_sizes()
